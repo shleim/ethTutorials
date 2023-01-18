@@ -21,52 +21,74 @@ const {
   
     describe("Deployment", function () {
       it("Should set the total supply to 1000", async function () {
-        const { igorToken} = await loadFixture(deployToken);
+        const { igorToken, owner} = await loadFixture(deployToken);
   
-        expect(await igorToken.totalSupply()).to.equal(BigInt(1000));
+        expect(await igorToken.totalSupply()).to.equal(1000);
+        expect(await igorToken.owner()).to.equal(owner.address);
       });
       
     });
   
-    // describe("Get", function () {
-    //     it("Should get the right counter", async function () {
-    //         const { counter , initialCount} = await loadFixture(deployWithCounter10);
+    describe("Create", function () {
+        it("Should create a 100 tokens for the owner", async function () {
+            const { igorToken , owner} = await loadFixture(deployToken);
 
-    //         expect(await counter.get()).to.equal(initialCount);
-    //     });
-    // });
+            await igorToken.create(100);
 
-    // describe("Inc", function () {
-    //     it("Should increment the counter by 1", async function () {
-    //         const { counter , initialCount} = await loadFixture(deployWithCounter10);
+            expect(await igorToken.balances(owner.address)).to.equal(100);
+        });
+
+        it("Should revert if created quantity is greater than totalSupply", async function () {
+            const { igorToken , owner} = await loadFixture(deployToken);
+            const totalSupply = await igorToken.totalSupply();
+
+            await expect(igorToken.create(totalSupply.add(100))).to.be.reverted;            
+        });
+
+        it("Should revert if created by not the owner", async function () {
+            const { igorToken , owner, otherAccount} = await loadFixture(deployToken);
             
-    //         await counter.inc();
-    //         expect(await counter.get()).to.equal(initialCount+BigInt(1));
-    //     });
-    // });
+            await expect(igorToken.connect(otherAccount).create(100)).to.be.revertedWith(
+                "Not owner"
+              );       
+        });
+    });
 
-    // describe("Dec", function () {
-    //     it("Should decrement the counter by 1", async function () {
-    //         const { counter , initialCount} = await loadFixture(deployWithCounter10);
+    describe("SendTo", function () {
+        it("Should send 100 tokens from the signer to another account", async function () {
+            const { igorToken, owner, otherAccount } = await loadFixture(deployToken);
             
-    //         await counter.dec();
-    //         expect(await counter.get()).to.equal(initialCount-BigInt(1));
-    //     });
+            await igorToken.create(200);
+            expect(await igorToken.balances(owner.address)).to.equal(200);
+            expect(await igorToken.balances(otherAccount.address)).to.equal(0);
 
-    //     it("Should decrement the counter by owner", async function () {
-    //         const { counter , initialCount} = await loadFixture(deployWithCounter10);
-            
-    //         await counter.dec();
-    //         expect(await counter.get()).to.equal(initialCount-BigInt(1));
-    //     });
+            await igorToken.sendTo(otherAccount.address, 50);
+            expect(await igorToken.balances(owner.address)).to.equal(150);
+            expect(await igorToken.balances(otherAccount.address)).to.equal(50);
+        });
 
-    //     it("Should revert with the right message if dec called by not the owner", async function () {
-    //         const { counter , otherAccount} = await loadFixture(deployWithCounter10);
+        it("Should revert if trying to send more than owned", async function () {
+            const { igorToken , owner, otherAccount} = await loadFixture(deployToken);
             
-    //         await expect(counter.connect(otherAccount).dec()).to.be.revertedWith(
-    //             "Not owner"
-    //           );
-    //     });
-    // });
+            await igorToken.create(200);
+
+            await expect(igorToken.sendTo(otherAccount.address, 201)).to.be.reverted;            
+        });
+    });
+
+    describe("Buy", function () {
+        it("Should buy 1 token", async function () {
+            const { igorToken, owner, otherAccount } = await loadFixture(deployToken);
+            
+            await igorToken.buy({ value: ethers.utils.parseEther("0.01") });
+            expect(await igorToken.balances(owner.address)).to.equal(1);            
+        });
+
+        it("Should revert if buying with wrong price", async function () {
+            const { igorToken , owner, otherAccount} = await loadFixture(deployToken);
+
+            await expect(igorToken.buy({ value: ethers.utils.parseEther("0.02") })).to.be.reverted;            
+        });
+    });
   });
   
